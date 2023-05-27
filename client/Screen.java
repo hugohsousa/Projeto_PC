@@ -201,8 +201,7 @@ public class Screen extends PApplet implements Runnable {
     public void joinGame() {
         try {
             cManager.send("join","");
-            String message = cManager.receive("start");
-            if (cManager.receive("start").equals("inicio?"))
+            if (cManager.receive("join").equals("inicio?"))
                 this.state = GameState.Game;
             else
                 reset();
