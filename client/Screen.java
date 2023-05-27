@@ -1,5 +1,7 @@
 import processing.core.PApplet;
 
+import java.io.IOException;
+
 enum GameState {
     Menu,
     Username,
@@ -10,11 +12,13 @@ public class Screen extends PApplet implements Runnable {
     private final int width = 1280;
     private final int height = 720;
     private GameState state = GameState.Menu;
-    // To-do Decide if we need to create a new class
-    private String username = "";
-    private String password = "";
+    // ConnectionManager
+    ConnectionManager cManager;
+    // Login
+    private Login login = new Login();
     
-    Screen() {
+    Screen(ConnectionManager cManager) {
+        this.cManager = cManager;
     }
 
     @Override
@@ -45,6 +49,7 @@ public class Screen extends PApplet implements Runnable {
             case Menu:
                 if(key == '1') {
                     this.state = GameState.Username;
+                    login.setLoggedIn(true);
                 }
                 if(key == '2') {
                     this.state = GameState.Username;
@@ -52,24 +57,25 @@ public class Screen extends PApplet implements Runnable {
                 break;
             case Username:
                 if (key == ENTER) {
-                    // Enviar o login
-                    System.out.println(this.username);
                     this.state = GameState.Password;
                 }
-                else if (key == BACKSPACE && this.username.length() != 0)
-                    this.username = this.username.substring(0, this.username.length() - 1);
+                else if (key == BACKSPACE && login.usernameSize() != 0)
+                    login.removeCharUsername();
                 else if (key >= 'a' && key <= 'z')
-                    this.username += key;
+                    login.addCharUsername(key);
                 break;
             case Password:
                 if (key == ENTER) {
-                    // Enviar o login
-                    System.out.println(this.password);
+                    try {
+                        sendUserInfo();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-                else if (key == BACKSPACE && this.password.length() != 0)
-                    this.password = this.password.substring(0, this.password.length() - 1);
+                else if (key == BACKSPACE && login.passwordSize() != 0)
+                    login.removeCharPassword();
                 else if (key >= 'a' && key <= 'z')
-                    this.password += key;
+                    login.addCharPassword(key);
                 break;
         }
     }
@@ -80,18 +86,26 @@ public class Screen extends PApplet implements Runnable {
 
     private void askUsername() {
         String message = "Username: ";
-        text(message + username, width/2 - username.length()*4, height/32 + 4);
+        text(message + login.getUsername(), width/2 - login.usernameSize()*4, height/32 + 4);
     }
 
     private void askPassword() {
         String message = "Password: ";
-        text(message + "*".repeat(password.length()), width/2 - username.length()*4, 7*height/32 + 4);
+        text(message + "*".repeat(login.passwordSize()), width/2 - login.passwordSize()*4, 7*height/32 + 4);
     }
-    
+
+    private void sendUserInfo() throws IOException {
+        if(login.isLoggedIn()) {
+            cManager.send("login", login.getUsername() + '#' + login.getPassword());
+        } else {
+            cManager.send("create_account", login.getUsername() + '#' + login.getPassword());
+        }
+    }
+
     @Override
     public void run() {
         String[] processingArgs = {"Screen"};
-        Screen screen = new Screen();
+        Screen screen = new Screen(cManager);
         PApplet.runSketch(processingArgs, screen);
     }
 }
