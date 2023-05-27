@@ -111,8 +111,17 @@ public class Screen extends PApplet implements Runnable {
                 if(key == '4')
                     this.state = GameState.RemoveAccount;
                 break;
+            case Game:
+                if(key == 'a')
+                    sendMovInfo("left");
+                if(key == 'd')
+                    sendMovInfo("right");
+                if(key == 'w')
+                    sendMovInfo("forward");
+                break;
         }
     }
+
 
     public void startLoginMenu() {
         text("1-Criar conta\n2-Entrar na conta", width/2 - 6, height/2 - 1);
@@ -201,7 +210,15 @@ public class Screen extends PApplet implements Runnable {
         }
     }
 
+    private void sendMovInfo(String move) {
+        try {
+            cManager.send("move",move);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     public void drawGame() {
+        background(0);
 
     }
 
