@@ -56,6 +56,17 @@ public class Screen extends PApplet implements Runnable {
             case Join:
                 joinGame();
                 break;
+            case Leaderboard:
+                break;
+            case Logout:
+                sendLogout();
+                break;
+            case RemoveAccount:
+                reqRemoveAccount();
+                break;
+            case Game:
+                drawGame();
+                break;
         }
     }
 
@@ -153,7 +164,30 @@ public class Screen extends PApplet implements Runnable {
         }
     }
 
-    private void joinGame() {
+    private void sendLogout() {
+        try {
+            cManager.send("logout","");
+            if(cManager.receive("logout").equals("done")) {
+                reset();
+                this.state = GameState.LoginMenu;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void reqRemoveAccount() {
+       try {
+            cManager.send("delete_account","");
+            String message = cManager.receive("delete_account");
+            if (cManager.receive("delete_account").equals("done")) {
+                reset();
+            }
+       } catch (IOException e) {
+            throw new RuntimeException(e);
+       }
+    }
+    public void joinGame() {
         try {
             cManager.send("join","");
             String message = cManager.receive("start");
@@ -163,8 +197,12 @@ public class Screen extends PApplet implements Runnable {
                 reset();
             // To Do - Decide o que fazer se existir erro
         } catch (IOException e) {
-            throw new RuntimeException(e):
+            throw new RuntimeException(e);
         }
+    }
+
+    public void drawGame() {
+
     }
 
     @Override
