@@ -14,42 +14,59 @@ stop() -> ?MODULE ! stop.
 
 server(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr,true}]),
-    Match = spawn(fun() -> match([]) end),
-    spawn(fun() -> acceptor(LSock, Match) end),
+    Lobby = spawn(fun() -> lobby([]) end),
+    spawn(fun() -> acceptor(LSock, Lobby) end),
     receive stop -> ok end.
 
 % get_tcp:accept(Port) -> {ok, Socket} | {error, Reason} // accepts an incoming connection request on a listening socket. Socket must be a socket returned from listen/2
 
-acceptor(LSock, Match) ->
+acceptor(LSock, Lobby) ->
     {ok, Sock} = gen_tcp:accept(LSock),
-    spawn(fun() -> acceptor(LSock, Match) end),
-    Match ! {enter, self()},
-    player(Sock, Match).
+    spawn(fun() -> acceptor(LSock, Lobby) end),
+    Lobby ! {enter, self()},
+    client(Sock, Lobby).
 
-match(Pids) ->
+client(Sock, Lobby) ->
+    receive
+        {tcp_closed, _} ->
+            Lobby ! {leave, self()};
+        {tcp_error, _, _} ->
+            Lobby ! {error, self()};
+        {tcp, _, Data} ->
+            % Lobby ! {line, Data},
+            parseClientInput(Data, Sock),
+            client(Sock, Lobby)
+    end.
+
+parseClientInput(Data, Sock) ->
+    String = binary_to_list(string:trim(Data, trailing, "\n")),
+    case string:split(String, ":") of
+        ["login", Message] ->
+            io:format("case login, message: ~p~n", [Message]);
+        ["logout", Message] ->
+            io:format("case logout, message: ~p~n", [Message]);
+        ["create_account", Message] ->
+            io:format("case create_account, message: ~p~n", [Message]);
+        ["remove_account", Message] ->
+            io:format("case remove_account, message: ~p~n", [Message]);
+        [_, Message] ->
+            io:format("input no recognized, message: ~p~n", [Message])
+    end.
+
+lobby(Pids) ->
     receive
         {enter, Pid} ->
-            io:format("player entered ~p~n", [Pid]),
-            match([Pid | Pids]);
+            io:format("player entered ~p~p~n", [self(), Pid]),
+            lobby([Pid | Pids]);
         {line, Data} = Msg ->
-            io:format("received ~p~n", [Data]),
+            io:format("received ~p~p~n", [self(), Data]),
             [Pid ! Msg || Pid <- Pids],
-            match(Pids);
+            lobby(Pids);
         {leave, Pid} ->
-            io:format("player left ~p~n", [Pid]),
-            match(Pids -- [Pid])
+            io:format("player left ~p~p~n", [self(), Pid]),
+            lobby(Pids -- [Pid]);
+        {error, Pid} ->
+            io:format("tcp_error received"),
+            lobby(Pids -- [Pid])
     end.
 
-player(Sock, Match) ->
-    receive
-        {line, Data} ->
-            gen_tcp:send(Sock, Data),
-            player(Sock, Match);
-        {tcp, _, Data} ->
-            Match ! {line, Data},
-            player(Sock, Match);
-        {tcp_closed, _} ->
-            Match ! {leave, self()};
-        {tcp_error, _, _} ->
-            Match ! {leave, self()}
-    end.
