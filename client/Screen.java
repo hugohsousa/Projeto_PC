@@ -3,15 +3,17 @@ import processing.core.PApplet;
 import java.io.IOException;
 
 enum GameState {
-    Menu,
+    LoginMenu,
     Username,
-    Password;
+    Password,
+    Menu;
+
 }
 
 public class Screen extends PApplet implements Runnable {
     private final int width = 1280;
     private final int height = 720;
-    private GameState state = GameState.Menu;
+    private GameState state = GameState.LoginMenu;
     // ConnectionManager
     ConnectionManager cManager;
     // Login
@@ -31,8 +33,8 @@ public class Screen extends PApplet implements Runnable {
         // Testing
         background(0);
         switch (this.state) {
-            case Menu:
-                startMenu();
+            case LoginMenu:
+                startLoginMenu();
                 break;
             case Username:
                 askUsername();
@@ -40,13 +42,15 @@ public class Screen extends PApplet implements Runnable {
             case Password:
                 askPassword();
                 break;
+            case Menu:
+                startMenu();
         }
     }
 
     @Override
     public void keyPressed() {
         switch (this.state) {
-            case Menu:
+            case LoginMenu:
                 if(key == '1') {
                     this.state = GameState.Username;
                     login.setLoggedIn(true);
@@ -65,13 +69,8 @@ public class Screen extends PApplet implements Runnable {
                     login.addCharUsername(key);
                 break;
             case Password:
-                if (key == ENTER) {
-                    try {
-                        sendUserInfo();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+                if (key == ENTER)
+                    sendUserInfo();
                 else if (key == BACKSPACE && login.passwordSize() != 0)
                     login.removeCharPassword();
                 else if (key >= 'a' && key <= 'z')
@@ -80,25 +79,51 @@ public class Screen extends PApplet implements Runnable {
         }
     }
 
-    private void startMenu() {
+    public void startLoginMenu() {
         text("1-Criar conta\n2-Entrar na conta", width/4, height/4);
     }
 
-    private void askUsername() {
+    private void startMenu() {
+    }
+
+    public void askUsername() {
         String message = "Username: ";
         text(message + login.getUsername(), width/2 - login.usernameSize()*4, height/32 + 4);
     }
 
-    private void askPassword() {
+    public void askPassword() {
         String message = "Password: ";
         text(message + "*".repeat(login.passwordSize()), width/2 - login.passwordSize()*4, 7*height/32 + 4);
     }
 
-    private void sendUserInfo() throws IOException {
-        if(login.isLoggedIn()) {
-            cManager.send("login", login.getUsername() + '#' + login.getPassword());
-        } else {
-            cManager.send("create_account", login.getUsername() + '#' + login.getPassword());
+    public void sendUserInfo() {
+        try {
+            String message;
+            if(login.isLoggedIn()) {
+                cManager.send("login", login.getUsername() + '#' + login.getPassword());
+                message = cManager.receive("login");
+            } else {
+                cManager.send("create_account", login.getUsername() + '#' + login.getPassword());
+                message = cManager.receive("create_account");
+            }
+            processLoginInfo(message);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void reset() {
+        this.state = GameState.LoginMenu;
+        login.setUsername("");
+        login.setPassword("");
+        login.setLoggedIn(false);
+    }
+    public void processLoginInfo(String message) {
+        if(message.equals("done"))
+            this.state = GameState.Menu;
+        else if(message.equals("erro 1")) {
+            System.out.println("erro");
+            reset();
         }
     }
 
