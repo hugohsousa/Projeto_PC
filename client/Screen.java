@@ -1,6 +1,7 @@
 import processing.core.PApplet;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 enum GameState {
     LoginMenu,
@@ -23,6 +24,7 @@ public class Screen extends PApplet implements Runnable {
     ConnectionManager cManager;
     // Login
     private Login login = new Login();
+    private ArrayList<Piece> pieces = new ArrayList<Piece>();
     
     Screen(ConnectionManager cManager) {
         this.cManager = cManager;
@@ -217,9 +219,32 @@ public class Screen extends PApplet implements Runnable {
             throw new RuntimeException(e);
         }
     }
-    public void drawGame() {
-        background(0);
+    public void receiveGameInfo() {
+        String message;
+        pieces.clear();
+        try {
+           message = cManager.receive("game");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
+        if(message.equals("ganhou")) {
+            System.out.println("Ganhou");
+        } else {
+           String[] gameInfo = message.split("#");
+           for(String info : gameInfo) {
+               pieces.add(new Piece(info.split("/")));
+           }
+        }
+    }
+
+    public void drawGame() {
+        receiveGameInfo();
+
+        for(Piece piece : this.pieces) {
+            fill(piece.getR(),piece.getG(),piece.getB());
+            circle(piece.getX(),piece.getY(),piece.getSize());
+        }
     }
 
     @Override
