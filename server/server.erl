@@ -16,7 +16,28 @@ server(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr,true}]),
     Lobby = spawn(fun() -> lobby([]) end),
     spawn(fun() -> acceptor(LSock, Lobby) end),
+    loop(Lobby, [], 0),
     receive stop -> ok end.
+
+loop(Lobby, Users, Games) ->
+    receive
+        {login, User, Pwd, FromPid} ->
+            io:format("Debug gameLoop login received ~p~p~p~n", [User, Pwd, FromPid]),
+            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
+            loop(Lobby, Users, Games);
+        {logout, User, Pwd, FromPid} ->
+            io:format("Debug gameLoop logout received ~p~p~p~n", [User, Pwd, FromPid]),
+            %UdatedUsers = login_manager:create_account(Users, User, Pwd),
+            loop(Lobby, Users, Games);
+        {create_account, User, Pwd, FromPid} ->
+            io:format("Debug gameLoop create_account received ~p~p~p~n", [User, Pwd, FromPid]),
+            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
+            loop(Lobby, Users, Games);
+        {remove_account, User, Pwd, FromPid} ->
+            io:format("Debug gameLoop remove_account received ~p~p~p~n", [User, Pwd, FromPid]),
+            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
+            loop(Lobby, Users, Games)
+    end.
 
 % get_tcp:accept(Port) -> {ok, Socket} | {error, Reason} // accepts an incoming connection request on a listening socket. Socket must be a socket returned from listen/2
 
@@ -42,15 +63,27 @@ parseClientInput(Data, Sock) ->
     String = binary_to_list(string:trim(Data, trailing, "\n")),
     case string:split(String, ":") of
         ["login", Message] ->
-            io:format("case login, message: ~p~n", [Message]);
+            io:format("Debug case login, message: ~p~n", [Message]),
+            [User, Pwd] = string:split(Message, "#"),
+            ?MODULE ! {login, User, Pwd, self()},
+            gen_tcp:send(Sock, "login:done\n");
         ["logout", Message] ->
-            io:format("case logout, message: ~p~n", [Message]);
+            io:format("Debug case logout, message: ~p~n", [Message]),
+            [User, Pwd] = string:split(Message, "#"),
+            ?MODULE ! {logout, User, Pwd, self()},
+            gen_tcp:send(Sock, "logout:done\n");
         ["create_account", Message] ->
-            io:format("case create_account, message: ~p~n", [Message]);
+            io:format("Debug case create_account, message: ~p~n", [Message]),
+            [User, Pwd] = string:split(Message, "#"),
+            ?MODULE ! {create_account, User, Pwd, self()},
+            gen_tcp:send(Sock, "create_account:done\n");
         ["remove_account", Message] ->
-            io:format("case remove_account, message: ~p~n", [Message]);
+            io:format("Debug case remove_account, message: ~p~n", [Message]),
+            [User, Pwd] = string:split(Message, "#"),
+            ?MODULE ! {remove_account, User, Pwd, self()},
+            gen_tcp:send(Sock, "remove_account:done\n");
         [_, Message] ->
-            io:format("input no recognized, message: ~p~n", [Message])
+            io:format("Debug input not recognized, message: ~p~n", [Message])
     end.
 
 lobby(Pids) ->
