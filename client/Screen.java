@@ -6,8 +6,13 @@ enum GameState {
     LoginMenu,
     Username,
     Password,
-    Menu;
-
+    Wait,
+    Menu,
+    Join,
+    Leaderboard,
+    Logout,
+    RemoveAccount,
+    Game;
 }
 
 public class Screen extends PApplet implements Runnable {
@@ -31,19 +36,26 @@ public class Screen extends PApplet implements Runnable {
     @Override
     public void draw() {
         // Testing
-        background(0);
         switch (this.state) {
             case LoginMenu:
+                background(0);
                 startLoginMenu();
                 break;
             case Username:
+                background(0);
                 askUsername();
                 break;
             case Password:
+                background(0);
                 askPassword();
                 break;
             case Menu:
+                background(0);
                 startMenu();
+                break;
+            case Join:
+                joinGame();
+                break;
         }
     }
 
@@ -69,21 +81,34 @@ public class Screen extends PApplet implements Runnable {
                     login.addCharUsername(key);
                 break;
             case Password:
-                if (key == ENTER)
+                if (key == ENTER) {
+                    this.state = GameState.Wait;
                     sendUserInfo();
+                }
                 else if (key == BACKSPACE && login.passwordSize() != 0)
                     login.removeCharPassword();
                 else if (key >= 'a' && key <= 'z')
                     login.addCharPassword(key);
                 break;
+            case Menu:
+                if(key == '1')
+                    this.state = GameState.Join;
+                if(key == '2')
+                    this.state = GameState.Leaderboard;
+                if(key == '3')
+                    this.state = GameState.Logout;
+                if(key == '4')
+                    this.state = GameState.RemoveAccount;
+                break;
         }
     }
 
     public void startLoginMenu() {
-        text("1-Criar conta\n2-Entrar na conta", width/4, height/4);
+        text("1-Criar conta\n2-Entrar na conta", width/2 - 6, height/2 - 1);
     }
 
     private void startMenu() {
+        text("1-Play\n2-Leaderboard\n3-Logout\n4-Remover Conta", width/2 - 7*4, height/2 - 16);
     }
 
     public void askUsername() {
@@ -119,11 +144,26 @@ public class Screen extends PApplet implements Runnable {
         login.setLoggedIn(false);
     }
     public void processLoginInfo(String message) {
+        this.state = GameState.Menu;
         if(message.equals("done"))
             this.state = GameState.Menu;
         else if(message.equals("erro 1")) {
             System.out.println("erro");
             reset();
+        }
+    }
+
+    private void joinGame() {
+        try {
+            cManager.send("join","");
+            String message = cManager.receive("start");
+            if (cManager.receive("start").equals("inicio?"))
+                this.state = GameState.Game;
+            else
+                reset();
+            // To Do - Decide o que fazer se existir erro
+        } catch (IOException e) {
+            throw new RuntimeException(e):
         }
     }
 

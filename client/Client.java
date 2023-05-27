@@ -4,8 +4,7 @@ public class Client {
     public static void main(String[] args) {
         try  {
             if(args.length < 2) {
-                // Ignore while testing
-                //System.exit(1);
+                System.exit(1);
             }
 
             Socket s = new Socket(args[0],Integer.parseInt(args[1]));
