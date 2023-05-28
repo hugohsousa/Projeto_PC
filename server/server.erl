@@ -1,5 +1,6 @@
 -module(server).
 -export([start/1, stop/0]).
+-import(loginManager, [create_account/2]).
 
 % Starts server on Port and registers its pid on ?MODULE macro
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -16,14 +17,14 @@ server(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr,true}]),
     Lobby = spawn(fun() -> lobby([]) end),
     spawn(fun() -> acceptor(LSock, Lobby) end),
-    loop(Lobby, [], 0),
+    loop(Lobby, #{}, 0),
     receive stop -> ok end.
 
 loop(Lobby, Users, Games) ->
     receive
         {login, User, Pwd, FromPid} ->
             io:format("Debug gameLoop login received ~p~p~p~n", [User, Pwd, FromPid]),
-            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
+            %UpdatedUsers = login_manager:create_account(Users, User, Pwd, FromPid),
             loop(Lobby, Users, Games);
         {logout, User, Pwd, FromPid} ->
             io:format("Debug gameLoop logout received ~p~p~p~n", [User, Pwd, FromPid]),
@@ -31,8 +32,9 @@ loop(Lobby, Users, Games) ->
             loop(Lobby, Users, Games);
         {create_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop create_account received ~p~p~p~n", [User, Pwd, FromPid]),
-            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
-            loop(Lobby, Users, Games);
+            {Res,UpdatedUsers} = loginManager:create_account(User, Pwd, Users, FromPid),
+            FromPid ! Res,
+            loop(Lobby, UpdatedUsers, Games);
         {remove_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop remove_account received ~p~p~p~n", [User, Pwd, FromPid]),
             %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
@@ -76,7 +78,11 @@ parseClientInput(Data, Sock) ->
             io:format("Debug case create_account, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
             ?MODULE ! {create_account, User, Pwd, self()},
-            gen_tcp:send(Sock, "create_account:done\n");
+            receive 
+                done -> gen_tcp:send(Sock, "create_account:done\n");
+                user_exists -> gen_tcp:send(Sock, "create_account:user_exists\n");
+                invalid_password -> gen_tcp:send(Sock, "create_account:invalid_password\n")
+            end;
         ["remove_account", Message] ->
             io:format("Debug case remove_account, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
