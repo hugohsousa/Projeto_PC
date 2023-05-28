@@ -1,5 +1,5 @@
 -module(loginManager).
--export([create_account/4,close_account/4, login/4]).
+-export([create_account/4,close_account/4, login/4, logout/4]).
 
 create_account(User, Pass, Map, From) ->
     case maps:find(User, Map) of
@@ -27,7 +27,21 @@ close_account(User, Pass, Map, From) ->
 login(User, Pass, Map, From) ->
     case maps:find(User, Map) of
         {ok, {Pass, false}} ->
-            From ! {done, maps:update(User, {Pass,true}, Map)};
+            From ! {done, Map#{User := {Pass, true}}};
+        {ok, {Pass, true}} ->
+            From ! {already_login, Map};
+        error ->
+            From ! {invalid_user, Map};
+        _ ->
+            From ! {invalid_password, Map}
+        end.
+
+logout(User, Pass, Map, From) ->
+    case maps:find(User, Map) of
+        {ok, {Pass, true}} ->
+            From ! {done, Map#{User := {Pass, false}}};
+        {ok, {Pass, false}} ->
+            From ! {already_logout, Map};
         error ->
             From ! {invalid_user, Map};
         _ ->

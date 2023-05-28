@@ -29,8 +29,9 @@ loop(Lobby, Users, Games) ->
             loop(Lobby, UpdatedUsers, Games);
         {logout, User, Pwd, FromPid} ->
             io:format("Debug gameLoop logout received ~p~p~p~n", [User, Pwd, FromPid]),
-            %UdatedUsers = login_manager:create_account(Users, User, Pwd),
-            loop(Lobby, Users, Games);
+            {Res,UpdatedUsers} = loginManager:logout(User, Pwd, Users, FromPid),
+            FromPid ! Res,
+            loop(Lobby, UpdatedUsers, Games);
         {create_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop create_account received ~p~p~p~n", [User, Pwd, FromPid]),
             {Res,UpdatedUsers} = loginManager:create_account(User, Pwd, Users, FromPid),
@@ -73,13 +74,19 @@ parseClientInput(Data, Sock) ->
             receive 
                 done -> gen_tcp:send(Sock, "login:done\n");
                 invalid_user -> gen_tcp:send(Sock, "login:invalid_user\n");
-                invalid_password -> gen_tcp:send(Sock, "login:invalid_password\n")
+                invalid_password -> gen_tcp:send(Sock, "login:invalid_password\n");
+                already_login -> gen_tcp:send(Sock, "login:already_login\n")
             end;
         ["logout", Message] ->
             io:format("Debug case logout, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
             ?MODULE ! {logout, User, Pwd, self()},
-            gen_tcp:send(Sock, "logout:done\n");
+            receive 
+                done -> gen_tcp:send(Sock, "logout:done\n");
+                invalid_user -> gen_tcp:send(Sock, "logout:invalid_user\n");
+                invalid_password -> gen_tcp:send(Sock, "logout:invalid_password\n");
+                already_logout-> gen_tcp:send(Sock, "logout:already_logout\n")
+            end;
         ["create_account", Message] ->
             io:format("Debug case create_account, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
