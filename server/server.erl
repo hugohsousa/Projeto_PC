@@ -1,6 +1,7 @@
 -module(server).
 -export([start/1, stop/0]).
 -import(loginManager, [create_account/4,close_account/4,login/4,logout/4]).
+-import(game, [match/2, test/0]). 
 
 % Starts server on Port and registers its pid on ?MODULE macro
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -41,7 +42,10 @@ loop(Lobby, Users, Games) ->
             io:format("Debug gameLoop remove_account received ~p~p~p~n", [User, Pwd, FromPid]),
             {Res,UpdatedUsers} = loginManager:close_account(User, Pwd, Users, FromPid),
             FromPid ! Res,
-            loop(Lobby, UpdatedUsers, Games)
+            loop(Lobby, UpdatedUsers, Games);
+        {join, User, FromPid} ->
+            Lobby ! {join, User, FromPid},
+            loop(Lobby, Users, Games)
     end.
 
 % get_tcp:accept(Port) -> {ok, Socket} | {error, Reason} // accepts an incoming connection request on a listening socket. Socket must be a socket returned from listen/2
@@ -49,7 +53,7 @@ loop(Lobby, Users, Games) ->
 acceptor(LSock, Lobby) ->
     {ok, Sock} = gen_tcp:accept(LSock),
     spawn(fun() -> acceptor(LSock, Lobby) end),
-    Lobby ! {enter, self()},
+    % Lobby ! {enter, self()},
     client(Sock, Lobby).
 
 client(Sock, Lobby) ->
@@ -105,24 +109,36 @@ parseClientInput(Data, Sock) ->
                 invalid_user -> gen_tcp:send(Sock, "remove_account:invalid_user\n");
                 invalid_password -> gen_tcp:send(Sock, "remove_account:invalid_password\n")
             end;
+        ["join", Message] ->
+            io:format("Debug case join,  message: ~p~n", [Message]),
+            ?MODULE ! {join, self()};
         [_, Message] ->
             io:format("Debug input not recognized, message: ~p~n", [Message])
     end.
 
-lobby(Pids) ->
-    receive
-        {enter, Pid} ->
-            io:format("player entered ~p~p~n", [self(), Pid]),
-            lobby([Pid | Pids]);
-        {line, Data} = Msg ->
-            io:format("received ~p~p~n", [self(), Data]),
-            [Pid ! Msg || Pid <- Pids],
-            lobby(Pids);
-        {leave, Pid} ->
-            io:format("player left ~p~p~n", [self(), Pid]),
-            lobby(Pids -- [Pid]);
-        {error, Pid} ->
-            io:format("tcp_error received"),
-            lobby(Pids -- [Pid])
+lobby(Queue) ->
+    receive 
+        {join, User, FromPid} ->
+            % FromPid ! {done, self()},
+            NewQueue = Queue ++ [{User, FromPid}],
+            case length(NewQueue) of
+                2 ->
+                    match(self(), NewQueue);
+                _ ->
+                    lobby(NewQueue)
+            end
     end.
+%        {enter, Pid} ->
+%            io:format("player entered ~p~p~n", [self(), Pid]),
+%            lobby([Pid | Pids]);
+%        {line, Data} = Msg ->
+%            io:format("received ~p~p~n", [self(), Data]),
+%            [Pid ! Msg || Pid <- Pids],
+%            lobby(Pids);
+%        {leave, Pid} ->
+%            io:format("player left ~p~p~n", [self(), Pid]),
+%            lobby(Pids -- [Pid]);
+%        {error, Pid} ->
+%            io:format("tcp_error received"),
+%            lobby(Pids -- [Pid])
 
