@@ -1,6 +1,6 @@
 -module(server).
 -export([start/1, stop/0]).
--import(loginManager, [create_account/2]).
+-import(loginManager, [create_account/4,close_account/4,login/4,logout/4]).
 
 % Starts server on Port and registers its pid on ?MODULE macro
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -24,8 +24,9 @@ loop(Lobby, Users, Games) ->
     receive
         {login, User, Pwd, FromPid} ->
             io:format("Debug gameLoop login received ~p~p~p~n", [User, Pwd, FromPid]),
-            %UpdatedUsers = login_manager:create_account(Users, User, Pwd, FromPid),
-            loop(Lobby, Users, Games);
+            {Res,UpdatedUsers} = loginManager:login(User, Pwd, Users, FromPid),
+            FromPid ! Res,
+            loop(Lobby, UpdatedUsers, Games);
         {logout, User, Pwd, FromPid} ->
             io:format("Debug gameLoop logout received ~p~p~p~n", [User, Pwd, FromPid]),
             %UdatedUsers = login_manager:create_account(Users, User, Pwd),
@@ -69,7 +70,11 @@ parseClientInput(Data, Sock) ->
             io:format("Debug case login, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
             ?MODULE ! {login, User, Pwd, self()},
-            gen_tcp:send(Sock, "login:done\n");
+            receive 
+                done -> gen_tcp:send(Sock, "login:done\n");
+                invalid_user -> gen_tcp:send(Sock, "login:invalid_user\n");
+                invalid_password -> gen_tcp:send(Sock, "login:invalid_password\n")
+            end;
         ["logout", Message] ->
             io:format("Debug case logout, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
