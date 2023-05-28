@@ -37,8 +37,9 @@ loop(Lobby, Users, Games) ->
             loop(Lobby, UpdatedUsers, Games);
         {remove_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop remove_account received ~p~p~p~n", [User, Pwd, FromPid]),
-            %UpdatedUsers = login_manager:create_account(Users, User, Pwd),
-            loop(Lobby, Users, Games)
+            {Res,UpdatedUsers} = loginManager:close_account(User, Pwd, Users, FromPid),
+            FromPid ! Res,
+            loop(Lobby, UpdatedUsers, Games)
     end.
 
 % get_tcp:accept(Port) -> {ok, Socket} | {error, Reason} // accepts an incoming connection request on a listening socket. Socket must be a socket returned from listen/2
@@ -87,7 +88,11 @@ parseClientInput(Data, Sock) ->
             io:format("Debug case remove_account, message: ~p~n", [Message]),
             [User, Pwd] = string:split(Message, "#"),
             ?MODULE ! {remove_account, User, Pwd, self()},
-            gen_tcp:send(Sock, "remove_account:done\n");
+            receive 
+                done -> gen_tcp:send(Sock, "remove_account:done\n");
+                invalid_user -> gen_tcp:send(Sock, "remove_account:invalid_user\n");
+                invalid_password -> gen_tcp:send(Sock, "remove_account:invalid_password\n")
+            end;
         [_, Message] ->
             io:format("Debug input not recognized, message: ~p~n", [Message])
     end.
