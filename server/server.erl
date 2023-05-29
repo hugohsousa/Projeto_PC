@@ -1,7 +1,7 @@
 -module(server).
 -export([start/1, stop/0]).
 -import(loginManager, [create_account/4,close_account/4,login/4,logout/4]).
--import(game, [match/2, test/0]). 
+-import(game, [match/2, clientMatchLoop/3]). 
 
 % Starts server on Port and registers its pid on ?MODULE macro
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -25,27 +25,30 @@ loop(Lobby, Users, Games) ->
     receive
         {login, User, Pwd, FromPid} ->
             io:format("Debug gameLoop login received ~p~p~p~n", [User, Pwd, FromPid]),
-            {Res,UpdatedUsers} = loginManager:login(User, Pwd, Users, FromPid),
+            {Res, UpdatedUsers} = loginManager:login(User, Pwd, Users, FromPid),
             FromPid ! Res,
             loop(Lobby, UpdatedUsers, Games);
         {logout, User, Pwd, FromPid} ->
             io:format("Debug gameLoop logout received ~p~p~p~n", [User, Pwd, FromPid]),
-            {Res,UpdatedUsers} = loginManager:logout(User, Pwd, Users, FromPid),
+            {Res, UpdatedUsers} = loginManager:logout(User, Pwd, Users, FromPid),
             FromPid ! Res,
             loop(Lobby, UpdatedUsers, Games);
         {create_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop create_account received ~p~p~p~n", [User, Pwd, FromPid]),
-            {Res,UpdatedUsers} = loginManager:create_account(User, Pwd, Users, FromPid),
+            {Res, UpdatedUsers} = loginManager:create_account(User, Pwd, Users, FromPid),
             FromPid ! Res,
             loop(Lobby, UpdatedUsers, Games);
         {remove_account, User, Pwd, FromPid} ->
             io:format("Debug gameLoop remove_account received ~p~p~p~n", [User, Pwd, FromPid]),
-            {Res,UpdatedUsers} = loginManager:close_account(User, Pwd, Users, FromPid),
+            {Res, UpdatedUsers} = loginManager:close_account(User, Pwd, Users, FromPid),
             FromPid ! Res,
             loop(Lobby, UpdatedUsers, Games);
         {join, User, FromPid} ->
-            Lobby ! {join, User, FromPid},
-            loop(Lobby, Users, Games)
+            Lobby ! {joinLobby, User, FromPid},
+            loop(Lobby, Users, Games);
+        {start, _FromPid} ->
+            NewLobby = spawn(fun() -> lobby([]) end),
+            loop(NewLobby, Users, Games + 1)
     end.
 
 % get_tcp:accept(Port) -> {ok, Socket} | {error, Reason} // accepts an incoming connection request on a listening socket. Socket must be a socket returned from listen/2
@@ -109,21 +112,27 @@ parseClientInput(Data, Sock) ->
                 invalid_user -> gen_tcp:send(Sock, "remove_account:invalid_user\n");
                 invalid_password -> gen_tcp:send(Sock, "remove_account:invalid_password\n")
             end;
-        ["join", Message] ->
-            io:format("Debug case join,  message: ~p~n", [Message]),
-            ?MODULE ! {join, self()};
-        [_, Message] ->
+        ["join", Username] ->
+            io:format("Debug case join,  username: ~p~n", [Username]),
+            ?MODULE ! {join, Sock, self()},
+            receive
+                {done, LobbyPid} ->
+                    gen_tcp:send(Sock, "Done\n"),
+                    clientMatchLoop(Sock, LobbyPid, Username)
+            end;
+       [_, Message] ->
             io:format("Debug input not recognized, message: ~p~n", [Message])
     end.
 
 lobby(Queue) ->
     receive 
-        {join, User, FromPid} ->
+        {joinLobby, User, FromPid} ->
             % FromPid ! {done, self()},
             NewQueue = Queue ++ [{User, FromPid}],
             case length(NewQueue) of
                 2 ->
-                    match(self(), NewQueue);
+                    [Pid ! {done, self()} || {_User, Pid} <- NewQueue],
+                    match(self(), NewQueue); %spawn?
                 _ ->
                     lobby(NewQueue)
             end
