@@ -114,7 +114,7 @@ parseClientInput(Data, Sock) ->
             end;
         ["join", Username] ->
             io:format("Debug case join,  username: ~p~n", [Username]),
-            ?MODULE ! {join, Sock, self()},
+            ?MODULE ! {join, Username, self()},
             receive
                 {done, LobbyPid} ->
                     gen_tcp:send(Sock, "Done\n"),
