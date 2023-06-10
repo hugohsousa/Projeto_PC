@@ -10,29 +10,31 @@ public class Piece {
     private int r;
     private int g;
     private int b;
-    public Piece(String[] piece) {
-        this.id = Integer.parseInt(piece[0]);
-        setColor(piece[1]);
-        this.x = Float.parseFloat(piece[2]);
-        this.y = Float.parseFloat(piece[3]);
-        if(this.viewAngle != -1) this.viewAngle = Float.parseFloat(piece[4]);
-        System.out.println("Debug:Id: " + this.id + " X: " + this.x + " Y: " + this.y);
+    public Piece(String[] piece, String username) {
+        if(piece.length > 3) {
+            if(piece[0].equals(username)) {
+                this.id = 1;
+                this.r = 255;
+                this.g = 255;
+                this.b = 255;
+            } else {
+                this.id = 2;
+                this.r = 0;
+                this.g = 0;
+                this.b = 0;
+            }
+            this.size = Integer.parseInt(piece[3]);
+            this.viewAngle = Float.parseFloat(piece[4]);
+        } else {
+            this.id = 3;
+        }
+        setColor(piece[0]);
+        this.x = Float.parseFloat(piece[1]);
+        this.y = Float.parseFloat(piece[2]);
     }
 
     public void setColor(String color) {
-        if(color.equals("white")) {
-            this.r = 255;
-            this.g = 255;
-            this.b = 255;
-            this.size = 50;
-            this.viewAngle = 0;
-        } else if (color.equals("black")) {
-            this.r = 0;
-            this.g = 0;
-            this.b = 0;
-            this.size = 50;
-            this.viewAngle = 0;
-        } else if(color.equals("red")) {
+        if(color.equals("red")) {
             this.r = 255;
             this.g = 0;
             this.b = 0;

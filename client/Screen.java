@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static java.lang.Thread.sleep;
+
 enum GameState {
     LoginMenu,
     Username,
@@ -24,7 +26,7 @@ public class Screen extends PApplet implements Runnable {
     private Lock lock = new ReentrantLock();
     private final int width = 1280;
     private final int height = 720;
-    private GameState state = GameState.Game;
+    private GameState state = GameState.LoginMenu;
     // ConnectionManager
     ConnectionManager cManager;
     // Login
@@ -140,6 +142,7 @@ public class Screen extends PApplet implements Runnable {
                     this.right = true;
                 if(key == 'w')
                     this.up = true;
+                sendMovInfo();
                 break;
         }
     }
@@ -252,11 +255,14 @@ public class Screen extends PApplet implements Runnable {
     }
     public void joinGame() {
         try {
-            cManager.send("join","");
-            if (cManager.receive("join").equals("done"))
+            cManager.send("join",login.getUsername());
+
+            if (cManager.receive("join").equals("done")) {
+                System.out.println("Received Game\n");
                 this.state = GameState.Game;
-            else
+            } else {
                 reset();
+            }
             // To Do - Decide o que fazer se existir erro
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -282,6 +288,11 @@ public class Screen extends PApplet implements Runnable {
             }
             if(toSend.length() > 0) {
                 cManager.send("move", toSend);
+                try {
+                    sleep(50000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -305,7 +316,7 @@ public class Screen extends PApplet implements Runnable {
                 background(100);
                 String[] gameInfo = message.split("#");
                 for (String info : gameInfo) {
-                    pieces.add(new Piece(info.split(",")));
+                    pieces.add(new Piece(info.split(","), login.getUsername()));
                 }
             } finally {
                 lock.unlock();
@@ -315,7 +326,6 @@ public class Screen extends PApplet implements Runnable {
     }
 
     public void drawGame() {
-        sendMovInfo();
         lock.lock();
         try {
             background(100);

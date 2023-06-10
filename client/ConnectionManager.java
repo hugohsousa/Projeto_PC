@@ -21,17 +21,23 @@ public class ConnectionManager implements AutoCloseable {
     }
 
     public void send(String type, String message) throws IOException {
+        System.out.println(type + ":" + message);
         out.println(type + ':' + message);
         out.flush();
     }
 
     public String receive(String type) throws IOException {
         String message = in.readLine();
+        while(message == null) {
+            message = in.readLine();
+        }
+
         String[] splitMessage = message.split(":",2);
         while(!splitMessage[0].equals(type)) {
             message = in.readLine();
             splitMessage = message.split(":",2);
         }
+        System.out.println(splitMessage[1]);
         return splitMessage[1];
     }
 
