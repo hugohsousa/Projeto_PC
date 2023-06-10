@@ -1,7 +1,7 @@
 -module(gameLogic).
--export([findColisions/1,calcCollision/6,norm/1]).
+-export([findCollisions/1,calcCollision/6,norm/1]).
 
-findColisions(State) ->
+findCollisions(State) ->
     {P1, P2, Food} = State,
     {P1, P2} = findCollisionsPlayers(P1,P2),
     {P1, P2, ToRemove} = findCollisionsPlayerFood(P1, P2, Food, []),

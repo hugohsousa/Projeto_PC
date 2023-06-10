@@ -2,8 +2,9 @@
 -export([start/1, stop/0]).
 -import(loginManager, [create_account/4,close_account/4,login/4,logout/4]).
 -import(game, [match/2, clientMatchLoop/3]). 
+-import(gameLogic, [findCollisions/1]).
 
-% Starts server on Port and registers its pid on ?MODULE macro
+% Starts server on Port and registers its pid on ??MODULE macro
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
 
 % Sends stop message to server pid
@@ -116,9 +117,9 @@ parseClientInput(Data, Sock) ->
             io:format("Debug case join,  username: ~p~n", [Username]),
             ?MODULE ! {join, Username, self()},
             receive
-                {done, LobbyPid} ->
+                {done, MatchPid} ->
                     gen_tcp:send(Sock, "Done\n"),
-                    clientMatchLoop(Sock, LobbyPid, Username)
+                    clientMatchLoop(Sock, MatchPid, Username)
             end;
        [_, Message] ->
             io:format("Debug input not recognized, message: ~p~n", [Message])
@@ -127,12 +128,10 @@ parseClientInput(Data, Sock) ->
 lobby(Queue) ->
     receive 
         {joinLobby, User, FromPid} ->
-            % FromPid ! {done, self()},
             NewQueue = Queue ++ [{User, FromPid}],
             case length(NewQueue) of
                 2 ->
-                    [Pid ! {done, self()} || {_User, Pid} <- NewQueue],
-                    match(self(), NewQueue); %spawn?
+                    match(?MODULE, NewQueue); %spawn?
                 _ ->
                     lobby(NewQueue)
             end
