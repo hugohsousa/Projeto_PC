@@ -25,6 +25,7 @@ public class Screen extends PApplet implements Runnable {
     // Login
     private Login login = new Login();
     private ArrayList<Piece> pieces = new ArrayList<Piece>();
+    private String error = "";
     
     Screen(ConnectionManager cManager) {
         this.cManager = cManager;
@@ -126,7 +127,8 @@ public class Screen extends PApplet implements Runnable {
 
 
     public void startLoginMenu() {
-        text("1-Criar conta\n2-Entrar na conta", width/2 - 6, height/2 - 1);
+        text("1-Entrar na conta\n2-Criar conta", width/2 - 6, height/2 - 1);
+        text(error, width / 2 - error.length()/2 , height/16);
     }
 
     private void startMenu() {
@@ -161,17 +163,20 @@ public class Screen extends PApplet implements Runnable {
 
     public void reset() {
         this.state = GameState.LoginMenu;
+        error = "";
         login.setUsername("");
         login.setPassword("");
         login.setLoggedIn(false);
     }
     public void processLoginInfo(String message) {
-        this.state = GameState.Menu;
-        if(message.equals("done"))
-            this.state = GameState.Menu;
-        else if(message.equals("erro 1")) {
-            System.out.println("erro");
-            reset();
+        if(login.isLoggedIn()) {
+            if(message.equals("done"))
+                this.state = GameState.Menu;
+            else if(message.equals("invalid_password")) {
+                System.out.println("Invalid Password");
+                reset();
+                error = "Invalid Password";
+            }
         }
     }
 
@@ -201,7 +206,7 @@ public class Screen extends PApplet implements Runnable {
     public void joinGame() {
         try {
             cManager.send("join","");
-            if (cManager.receive("join").equals("inicio?"))
+            if (cManager.receive("join").equals("done"))
                 this.state = GameState.Game;
             else
                 reset();
@@ -227,12 +232,12 @@ public class Screen extends PApplet implements Runnable {
             throw new RuntimeException(e);
         }
 
-        if(message.equals("ganhou")) {
+        if(message.equals("win")) {
             System.out.println("Ganhou");
         } else {
            String[] gameInfo = message.split("#");
            for(String info : gameInfo) {
-               pieces.add(new Piece(info.split("/")));
+               pieces.add(new Piece(info.split(",")));
            }
         }
     }
