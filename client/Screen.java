@@ -169,13 +169,27 @@ public class Screen extends PApplet implements Runnable {
         login.setLoggedIn(false);
     }
     public void processLoginInfo(String message) {
-        if(login.isLoggedIn()) {
-            if(message.equals("done"))
+        if(message.equals("invalid_password")) {
+            System.out.println("Invalid Password");
+            reset();
+            error = "Invalid Password";
+        } else if (message.equals("invalid_username")) {
+            System.out.println("Invalid Username");
+            reset();
+            error = "Invalid Username";
+        } else if (message.equals("user_exists")) {
+            System.out.println("User already in database");
+            reset();
+            error = "Username is taken";
+        } else if(login.isLoggedIn()) {
+            if(message.equals("done")) {
                 this.state = GameState.Menu;
-            else if(message.equals("invalid_password")) {
-                System.out.println("Invalid Password");
+            }
+        } else {
+            if(message.equals("done")) {
+                this.state = GameState.LoginMenu;
                 reset();
-                error = "Invalid Password";
+                error = "Account Created Successfully";
             }
         }
     }
