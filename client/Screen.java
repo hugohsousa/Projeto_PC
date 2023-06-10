@@ -198,7 +198,6 @@ public class Screen extends PApplet implements Runnable {
 
     public void reset() {
         this.state = GameState.LoginMenu;
-        error = "";
         login.setUsername("");
         login.setPassword("");
         login.setLoggedIn(false);
@@ -288,11 +287,6 @@ public class Screen extends PApplet implements Runnable {
             }
             if(toSend.length() > 0) {
                 cManager.send("move", toSend);
-                try {
-                    sleep(50000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -307,8 +301,13 @@ public class Screen extends PApplet implements Runnable {
         }
 
         if(message.equals("win")) {
-            System.out.println("Ganhou");
+            System.out.println("Ganhou\n");
             state = GameState.Over;
+            error = "Ganhou\n";
+        } else if(message.equals("lose")) {
+                System.out.println("Perdeu\n");
+                state = GameState.Over;
+                error = "Perdeu\n";
         } else {
             lock.lock();
             try {
