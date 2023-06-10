@@ -3,8 +3,10 @@
 -import(gameLogic, [findCollisions/1]).
 -define(ScreenX, 800).
 -define(ScreenY, 800).
--define(PlayerRadius, 50).
 -define(FoodRadius, 30).
+-define(PlayerRadius, 50).
+-define(AngularVel, 1.5).
+-define(LinearAcel, 1).
 
 match(ServerPid, Players) ->
     io:format("Starting match\n"),
@@ -18,17 +20,16 @@ initMatch(Players) ->
     %           [Username2, x2, y2, color2, radius, direction2, angularVel2, linearAcel2, score2, FromPid2 ],
     %           [[Color, x, y], [Color, x, y]]]
     [{User1, FromPid1},{User2, FromPid2}] = Players,
-    P1 = {User1, 100, 100, "black", ?PlayerRadius, 5.5, 2.13, 0.23, 0, FromPid1},
-    P2 = {User2, 700, 700, "white", ?PlayerRadius, 2.36, 2.13, 0.23, 0, FromPid2},
+    P1 = {User1, 100, 100, "black", ?PlayerRadius, 5.5, ?AngularVel, ?LinearAcel, 0, FromPid1},
+    P2 = {User2, 700, 700, "white", ?PlayerRadius, 2.36, ?AngularVel, ?LinearAcel, 0, FromPid2},
     State = {P1, P2, []},
     State.
 
 matchTimer(ServerPid, State) ->
     Self = self(),
+    spawn(fun() -> receive after 120000 -> Self ! endgame end end),
     spawn(fun() -> receive after 150 -> Self ! timeout end end),
-
-    %TmpState = gameLogic:findCollisions(State),
-    TmpState = State,
+    TmpState = gameLogic:findCollisions(State),
     NewState = createFood(TmpState),
     {{_,_,_,_,_,_,_,_,_,From1},{_,_,_,_,_,_,_,_,_,From2}, _} = State,
     From1 ! {toClient, State},
@@ -55,12 +56,25 @@ createFood(State) ->
 
 loop(ServerPid, State) ->
     receive
+        endgame ->
+            io:format("endgame"),
+            {{User1,_,_,_,_,_,_,_,Score1,FromPid1},{User2,_,_,_,_,_,_,_,Score2,FromPid2}, _} = State,
+            if Score1 > Score2 ->
+                   ServerPid ! {matchover, User1, User2, FromPid1, FromPid2};
+               true ->
+                   ServerPid ! {matchover, User2, User1, FromPid2, FromPid1}
+            end;
         timeout ->
             matchTimer(ServerPid, State);
-        {leave, _User, FromPid} ->
-            FromPid ! leave,
-            ServerPid ! left;
-            % removePlayer
+        {leave, User, _FromPid} ->
+            {{User1, _, _, _, _, _, _, _, _, FromPid1}, {User2, _, _, _, _, _, _, _, _, FromPid2}, _} = State,
+            case User of 
+                User1 ->
+                    ServerPid ! {matchover, User2, User1, FromPid2, FromPid1};
+                User2 ->
+                    ServerPid ! {matchover, User1,  User2, FromPid1, FromPid2}
+            end;
+            % exit(kill) ????
         {move, {Username, Direction} ,_} ->
             NewState = input(State, Username, Direction),
             loop(ServerPid, NewState)
@@ -68,12 +82,19 @@ loop(ServerPid, State) ->
 
 clientMatchLoop(Sock, MatchPid, Username) ->
     receive
+        winner ->
+            gen_tcp:send(Sock, "win");
+        loser ->
+            gen_tcp:send(Sock, "lose");
+        {tcp_closed, _} ->
+            MatchPid ! {leave, Username, self()};
+        {tcp_error, _} ->
+            MatchPid ! {leave, Username, self()};
         {tcp, _, Data} -> 
             String = binary_to_list(string:trim(Data, trailing, "\n")),
             case string:split(String, ":") of
                 ["move", Direction] ->
-                    io:format("Debug case move in clientMatchLoop: ~p~p~n", [Direction, Username]),
-                    gen_tcp:send(Sock, "arrived clientMatchLoop \n"),
+                    io:format("Debug case move in clientMatchLoop: ~p~n", [MatchPid]),
                     MatchPid ! {move, {Username, Direction}, self()}
             end,
             clientMatchLoop(Sock, MatchPid, Username);
@@ -84,7 +105,6 @@ clientMatchLoop(Sock, MatchPid, Username) ->
     end.
 
 stateToString(State) ->
-    % "game:username, x, y, raio, dir#user2,x,y,raio#cor,x,y#cor,x,y"
     {{Username1,X1,Y1,_,R1,Dir1,_,_,_,_},{Username2,X2,Y2,_,R2,Dir2,_,_,_,_}, Food} = State,
     PlayerStr = lists:flatten(io_lib:format("game:~s,~p,~p,~p,~p#~s,~p,~p,~p,~p", [Username1, X1, Y1, R1, Dir1, 
                                                                                    Username2, X2, Y2, R2, Dir2])),
@@ -138,7 +158,3 @@ input(State, Username, Direction) ->
             NewState = {P1, NewP2, Food}
     end,
     NewState.
-
-% ProcessingPlayer = {username, colr, x, y, direction}
-% ServerPlayer = {username, color, x, y, direction, linearAcel, angularVeloc, score}
-% state = {}

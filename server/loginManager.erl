@@ -8,7 +8,7 @@ create_account(User, Pass, Map, From) ->
                Pass == ""  ->
                     From ! {invalid_password, Map};
                true ->
-                    From ! {done, Map#{User => {Pass, false}}}
+                    From ! {done_acc, Map#{User => {Pass, false, 0, 0}}}
             end;
         _ ->
             From ! {user_exists, Map}
@@ -16,8 +16,8 @@ create_account(User, Pass, Map, From) ->
 
 close_account(User, Pass, Map, From) ->
     case maps:find(User, Map) of
-        {ok, {Pass, _}} ->
-            From ! {done, maps:remove(User, Map)};
+        {ok, {Pass, _, _, _}} ->
+            From ! {done_remove, maps:remove(User, Map)};
         error ->
             From ! {invalid_user, Map};
         _ ->
@@ -26,9 +26,9 @@ close_account(User, Pass, Map, From) ->
 
 login(User, Pass, Map, From) ->
     case maps:find(User, Map) of
-        {ok, {Pass, false}} ->
-            From ! {done, Map#{User := {Pass, true}}};
-        {ok, {Pass, true}} ->
+        {ok, {Pass, false, _, _}} ->
+            From ! {done_login, Map#{User := {Pass, true, level, score}}};
+        {ok, {Pass, true, _, _}} ->
             From ! {already_login, Map};
         error ->
             From ! {invalid_user, Map};
@@ -38,9 +38,9 @@ login(User, Pass, Map, From) ->
 
 logout(User, Pass, Map, From) ->
     case maps:find(User, Map) of
-        {ok, {Pass, true}} ->
-            From ! {done, Map#{User := {Pass, false}}};
-        {ok, {Pass, false}} ->
+        {ok, {Pass, true, _, _}} ->
+            From ! {done_logout, Map#{User := {Pass, false}}};
+        {ok, {Pass, false, _, _}} ->
             From ! {already_logout, Map};
         error ->
             From ! {invalid_user, Map};

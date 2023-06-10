@@ -1,13 +1,14 @@
 -module(gameLogic).
 -export([findCollisions/1,calcCollision/6,norm/1]).
+-define(AngularVel, 1.5).
+-define(LinearAcel, 1).
 
 findCollisions(State) ->
     {P1, P2, Food} = State,
-    {P1, P2} = findCollisionsPlayers(P1,P2),
-    {P1, P2, ToRemove} = findCollisionsPlayerFood(P1, P2, Food, []),
+    {TmpP1, TmpP2} = findCollisionsPlayers(P1, P2),
+    {NewP1, NewP2, ToRemove} = findCollisionsPlayerFood(TmpP1, TmpP2, Food, []),
     NewFood = cleanFood(Food, ToRemove),
-    {P1,P2,NewFood}.
-
+    {NewP1, NewP2, NewFood}.
 
 findCollisionsPlayers(P1,P2) ->
     {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1} = P1,
@@ -40,12 +41,20 @@ findCollisionsPlayerFood(P1, P2 ,[H|T], ToRemove) ->
             case calcCollision(XP2, YP2, RP2, FoodX, FoodY, 10) of
                 true ->
                     case Color of
-                        "Red" ->
-                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2};
-                        "Green" ->
-                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2};
-                        "Blue" ->
-                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2}
+                        "red" ->
+                            NewP2 = {US2, XP2, YP2, C2, RP2, DP2, ?AngularVel, ?LinearAcel, SP2, FromPid2};
+                        "green" ->
+                            if AVP2 < ?AngularVel * 5 ->
+                                   NewP2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2 + 1, LVP2, SP2, FromPid2};
+                               true ->
+                                   NewP2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2}
+                            end;
+                        "blue" ->
+                            if LVP2 < ?LinearAcel * 5 ->
+                                   NewP2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2 + 1, SP2, FromPid2};
+                               true ->
+                                   NewP2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2}
+                            end
                     end,
                     {NewP1, NewP2, NewToRemove} = findCollisionsPlayerFood(P1, P2, T, ToRemove ++ [H]);
                 false ->
@@ -53,12 +62,20 @@ findCollisionsPlayerFood(P1, P2 ,[H|T], ToRemove) ->
             end;
         true ->
             case Color of
-                "Red" ->
-                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1};
-                "Green" ->
-                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1};
-                "Blue" ->
-                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1}
+                "red" ->
+                    NewP1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1};
+                "green" ->
+                    if AVP1 < ?AngularVel * 5 ->
+                           NewP1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1 + 1, LVP1, SP1, FromPid1};
+                       true ->
+                           NewP1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1}
+                    end;
+                "blue" ->
+                    if LVP1 < ?LinearAcel * 5 ->
+                           NewP1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1 + 1, SP1, FromPid1};
+                       true ->
+                           NewP1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1}
+                    end
             end,
             {NewP1, NewP2, NewToRemove} = findCollisionsPlayerFood(P1, P2, T, ToRemove ++ [H])
     end,
@@ -93,10 +110,10 @@ calcCollisionAngle(XP1, YP1, DP1, XP2, YP2, DP2) ->
     Angle1 = math:acos(crossProduct(Vector1,VisionVectorP2)/(norm(Vector1)*norm(VisionVectorP2))),
     Angle2 = math:acos(crossProduct(Vector1,VisionVectorP1)/(norm(Vector2)*norm(VisionVectorP1))),
     io:format("Debug Case Angle1: ~p Angle2: ~p~n",[Angle1,Angle2]),
-    if ((Angle1 =< 90) + (Angle2 > 90)) ->
+    if ((Angle1 =< 3.14/2) + (Angle2 > 3.14/2)) ->
            Res = player1;
         true ->
-            if ((Angle2 =< 90) + (Angle1 > 90)) ->
+            if ((Angle2 =< 3.14/2) + (Angle1 > 3.14/2)) ->
                 Res = player2;
             true ->
                 Res = nothing
