@@ -13,13 +13,14 @@ enum GameState {
     Leaderboard,
     Logout,
     RemoveAccount,
+    Playing,
     Game;
 }
 
 public class Screen extends PApplet implements Runnable {
     private final int width = 1280;
     private final int height = 720;
-    private GameState state = GameState.LoginMenu;
+    private GameState state = GameState.Game;
     // ConnectionManager
     ConnectionManager cManager;
     // Login
@@ -29,6 +30,11 @@ public class Screen extends PApplet implements Runnable {
     
     Screen(ConnectionManager cManager) {
         this.cManager = cManager;
+    }
+    Screen(ConnectionManager cManager, GameState game) {
+        this.cManager = cManager;
+        this.state = game;
+        drawGame();
     }
 
     @Override
@@ -68,6 +74,12 @@ public class Screen extends PApplet implements Runnable {
                 reqRemoveAccount();
                 break;
             case Game:
+                new Thread(() -> {
+                    receiveGameInfo();
+                }).start();
+                state = GameState.Playing;
+                break;
+            case Playing:
                 drawGame();
                 break;
         }
@@ -114,7 +126,7 @@ public class Screen extends PApplet implements Runnable {
                 if(key == '4')
                     this.state = GameState.RemoveAccount;
                 break;
-            case Game:
+            case Playing:
                 if(key == 'a')
                     sendMovInfo("left");
                 if(key == 'd')
@@ -212,6 +224,7 @@ public class Screen extends PApplet implements Runnable {
             String message = cManager.receive("delete_account");
             if (cManager.receive("delete_account").equals("done")) {
                 reset();
+                error = "Account Removed";
             }
        } catch (IOException e) {
             throw new RuntimeException(e);
@@ -237,9 +250,8 @@ public class Screen extends PApplet implements Runnable {
             throw new RuntimeException(e);
         }
     }
-    public void receiveGameInfo() {
+    public synchronized void receiveGameInfo() {
         String message;
-        pieces.clear();
         try {
            message = cManager.receive("game");
         } catch (IOException e) {
@@ -249,19 +261,34 @@ public class Screen extends PApplet implements Runnable {
         if(message.equals("win")) {
             System.out.println("Ganhou");
         } else {
+           pieces.clear();
+           background(100);
            String[] gameInfo = message.split("#");
            for(String info : gameInfo) {
                pieces.add(new Piece(info.split(",")));
            }
         }
+        receiveGameInfo();
     }
 
-    public void drawGame() {
-        receiveGameInfo();
-
+    public void  drawGame() {
+        background(100);
         for(Piece piece : this.pieces) {
-            fill(piece.getR(),piece.getG(),piece.getB());
-            circle(piece.getX(),piece.getY(),piece.getSize());
+            if(piece.getId() == 1 || piece.getId() == 2) {
+                fill(piece.getR(), piece.getG(), piece.getB());
+                pushMatrix();
+                translate(piece.getX(), piece.getY());
+                circle(0, 0, piece.getSize());
+                rotate(piece.getViewAngle());
+                rect(0, 0, 30, 1);
+                popMatrix();
+            } else {
+                fill(piece.getR(), piece.getG(), piece.getB());
+                pushMatrix();
+                translate(piece.getX(), piece.getY());
+                circle(0, 0, piece.getSize());
+                popMatrix();
+            }
         }
     }
 
