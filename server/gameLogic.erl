@@ -3,13 +3,13 @@
 
 findColisions(State) ->
     {P1, P2, Food} = State,
-    {NewP1, NewP2} = findColisionsPlayers(P1,P2),
-    %{P1, Food} = findColisionsPlayerFood(P1, Food),
-    %{P2, Food} = findColisionsPlayerFood(P2, Food),
-    {NewP1,NewP2,Food}.
+    {P1, P2} = findCollisionsPlayers(P1,P2),
+    {P1, P2, ToRemove} = findCollisionsPlayerFood(P1, P2, Food, []),
+    NewFood = cleanFood(Food, ToRemove),
+    {P1,P2,NewFood}.
 
 
-findColisionsPlayers(P1,P2) ->
+findCollisionsPlayers(P1,P2) ->
     {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1} = P1,
     {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2} = P2,
     case calcCollision(XP1, YP1, RP1, XP2, YP2, RP2) of 
@@ -22,7 +22,7 @@ findColisionsPlayers(P1,P2) ->
                    NewP1 = {US1, 100, 100, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1},
                    NewP2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2 + 1, FromPid2};
                _ ->
-                   NewP1 = "teste",
+                   NewP1 = P1,
                    NewP2 = P2
            end;
         _ ->
@@ -30,8 +30,51 @@ findColisionsPlayers(P1,P2) ->
             NewP2 = P2
     end, {NewP1,NewP2}.
 
-findColisionsPlayerFood(P, Food) ->
-    ok.
+findCollisionsPlayerFood(P1, P2, [], ToRemove) -> {P1, P2, ToRemove};
+findCollisionsPlayerFood(P1, P2 ,[H|T], ToRemove) ->
+    {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1} = P1,
+    {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2} = P2,
+    {Color, FoodX, FoodY} = H, 
+    case calcCollision(XP1, YP1, RP1, FoodX, FoodY, 10) of
+        false ->
+            case calcCollision(XP2, YP2, RP2, FoodX, FoodY, 10) of
+                true ->
+                    case Color of
+                        "Red" ->
+                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2};
+                        "Green" ->
+                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2};
+                        "Blue" ->
+                            P2 = {US2, XP2, YP2, C2, RP2, DP2, AVP2, LVP2, SP2, FromPid2}
+                    end,
+                    {NewP1, NewP2, NewToRemove} = findCollisionsPlayerFood(P1, P2, T, ToRemove ++ [H]);
+                false ->
+                    {NewP1, NewP2, NewToRemove} = findCollisionsPlayerFood(P1, P2, T, ToRemove)
+            end;
+        true ->
+            case Color of
+                "Red" ->
+                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1};
+                "Green" ->
+                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1};
+                "Blue" ->
+                    P1 = {US1, XP1, YP1, C1, RP1, DP1, AVP1, LVP1, SP1, FromPid1}
+            end,
+            {NewP1, NewP2, NewToRemove} = findCollisionsPlayerFood(P1, P2, T, ToRemove ++ [H])
+    end,
+    {NewP1, NewP2, NewToRemove}.
+    
+cleanFood(F, []) -> F;
+cleanFood([H|T],[H2|T2]) ->
+    {C1, X1, Y1} = H, 
+    {C2, X2, Y2} = H2, 
+    case {C2, X2, Y2} of
+        {C1, X1, Y1} ->
+            NewFood = cleanFood(T,T2);
+        _ ->
+            NewFood = [H] ++ cleanFood(T,[H2|T2])
+    end, 
+    NewFood.
 
 calcCollision(XP1, YP1, RaioP1, XP2, YP2, RaioP2) ->
     Dist = math:sqrt((XP2-XP1)*(XP2-XP1) + (YP2-YP1)*(YP2-YP1)), 
