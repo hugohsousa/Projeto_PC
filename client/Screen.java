@@ -2,6 +2,8 @@ import processing.core.PApplet;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 enum GameState {
     LoginMenu,
@@ -13,11 +15,13 @@ enum GameState {
     Leaderboard,
     Logout,
     RemoveAccount,
+    Game,
     Playing,
-    Game;
+    Over;
 }
 
 public class Screen extends PApplet implements Runnable {
+    private Lock lock = new ReentrantLock();
     private final int width = 1280;
     private final int height = 720;
     private GameState state = GameState.Game;
@@ -27,16 +31,16 @@ public class Screen extends PApplet implements Runnable {
     private Login login = new Login();
     private ArrayList<Piece> pieces = new ArrayList<Piece>();
     private String error = "";
-    
+    private boolean left;
+    private boolean up;
+    private boolean right;
+
     Screen(ConnectionManager cManager) {
         this.cManager = cManager;
+        this.left = false;
+        this.right = false;
+        this.up = false;
     }
-    Screen(ConnectionManager cManager, GameState game) {
-        this.cManager = cManager;
-        this.state = game;
-        drawGame();
-    }
-
     @Override
     public void settings() {
         size(width,height);
@@ -81,6 +85,9 @@ public class Screen extends PApplet implements Runnable {
                 break;
             case Playing:
                 drawGame();
+                break;
+            case Over:
+                reset();
                 break;
         }
     }
@@ -128,15 +135,28 @@ public class Screen extends PApplet implements Runnable {
                 break;
             case Playing:
                 if(key == 'a')
-                    sendMovInfo("left");
+                    this.left = true;
                 if(key == 'd')
-                    sendMovInfo("right");
+                    this.right = true;
                 if(key == 'w')
-                    sendMovInfo("forward");
+                    this.up = true;
                 break;
         }
     }
 
+    @Override
+    public void keyReleased() {
+        switch (this.state) {
+            case Playing:
+                if(key == 'a')
+                    this.left = false;
+                if(key == 'd')
+                    this.right = false;
+                if(key == 'w')
+                    this.up = false;
+                break;
+        }
+    }
 
     public void startLoginMenu() {
         text("1-Entrar na conta\n2-Criar conta", width/2 - 6, height/2 - 1);
@@ -243,9 +263,26 @@ public class Screen extends PApplet implements Runnable {
         }
     }
 
-    private void sendMovInfo(String move) {
+    private void sendMovInfo() {
+        String toSend = "";
         try {
-            cManager.send("move",move);
+            if (this.up)
+                toSend = toSend + "up";
+            if (this.left) {
+                if(toSend.length() > 0) {
+                    toSend = toSend + "#";
+                }
+                toSend = toSend + "left";
+            }
+            if (this.right) {
+                if(toSend.length() > 0) {
+                    toSend = toSend + "#";
+                }
+                toSend = toSend + "right";
+            }
+            if(toSend.length() > 0) {
+                cManager.send("move", toSend);
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -260,35 +297,47 @@ public class Screen extends PApplet implements Runnable {
 
         if(message.equals("win")) {
             System.out.println("Ganhou");
+            state = GameState.Over;
         } else {
-           pieces.clear();
-           background(100);
-           String[] gameInfo = message.split("#");
-           for(String info : gameInfo) {
-               pieces.add(new Piece(info.split(",")));
-           }
+            lock.lock();
+            try {
+                pieces.clear();
+                background(100);
+                String[] gameInfo = message.split("#");
+                for (String info : gameInfo) {
+                    pieces.add(new Piece(info.split(",")));
+                }
+            } finally {
+                lock.unlock();
+            }
         }
         receiveGameInfo();
     }
 
-    public void  drawGame() {
-        background(100);
-        for(Piece piece : this.pieces) {
-            if(piece.getId() == 1 || piece.getId() == 2) {
-                fill(piece.getR(), piece.getG(), piece.getB());
-                pushMatrix();
-                translate(piece.getX(), piece.getY());
-                circle(0, 0, piece.getSize());
-                rotate(piece.getViewAngle());
-                rect(0, 0, 30, 1);
-                popMatrix();
-            } else {
-                fill(piece.getR(), piece.getG(), piece.getB());
-                pushMatrix();
-                translate(piece.getX(), piece.getY());
-                circle(0, 0, piece.getSize());
-                popMatrix();
+    public void drawGame() {
+        sendMovInfo();
+        lock.lock();
+        try {
+            background(100);
+            for (Piece piece : this.pieces) {
+                if (piece.getId() == 1 || piece.getId() == 2) {
+                    fill(piece.getR(), piece.getG(), piece.getB());
+                    pushMatrix();
+                    translate(piece.getX(), piece.getY());
+                    circle(0, 0, piece.getSize());
+                    rotate(piece.getViewAngle());
+                    rect(0, 0, 30, 1);
+                    popMatrix();
+                } else {
+                    fill(piece.getR(), piece.getG(), piece.getB());
+                    pushMatrix();
+                    translate(piece.getX(), piece.getY());
+                    circle(0, 0, piece.getSize());
+                    popMatrix();
+                }
             }
+        } finally {
+            lock.unlock();
         }
     }
 
